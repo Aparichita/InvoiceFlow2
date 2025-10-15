@@ -11,13 +11,14 @@ import { stripeWebhooks } from "./controllers/webhooks.js";
 
 const app = express();
 // Stripe webhook endpoint (raw body required)
+// Stripe webhook endpoint (raw body required)
 app.post(
   "/api/stripe",
   express.raw({ type: "application/json" }),
   stripeWebhooks
 );
 
-// ==== Stripe webhook raw parser (must come BEFORE express.json()) ====
+// Stripe webhook for payments
 app.post(
   "/api/payments/webhook/stripe",
   express.raw({ type: "application/json" }), // raw body required
@@ -27,24 +28,21 @@ app.post(
   }
 );
 
-// ==== JSON parser for all other routes ====
-app.use((req, res, next) => {
-  if (req.isStripeWebhook) return next(); // skip JSON for webhook
-  express.json()(req, res, next);
-});
+// Standard JSON + URL-encoded parser for all other routes
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ==== Static serving for PDFs ====
+// Static serving for PDFs
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use("/public", express.static(path.join(__dirname, "../public")));
 
-// ==== API routes ====
+// API routes
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 
-// ==== Global error handler ====
+// Global error handler
 app.use(errorMiddleware);
 
 export default app;

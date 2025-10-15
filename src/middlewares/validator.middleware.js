@@ -15,6 +15,8 @@ export const validate = (req, res, next) => {
     field: err.param,
     message: err.msg,
   }));
+  console.log("Validation errors:", extractedErrors);
+
 
   // Throw ApiError using your project's error shape
   throw new ApiError(400, "Validation failed", extractedErrors);

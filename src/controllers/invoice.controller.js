@@ -8,7 +8,8 @@ import Invoice from "../models/invoice.model.js";
  * createInvoice
  * Body: { customerName, customerPhone, customerEmail?, items: [{name, quantity, price}], tax?, language? }
  */
-const createInvoice = asyncHandler(async (req, res) => {
+const createInvoice = asyncHandler(async (req, res,next) => {
+  console.log("Invoice POST received:", req.body);
   const {
     customerName,
     customerPhone,
