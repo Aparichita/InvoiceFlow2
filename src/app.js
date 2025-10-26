@@ -8,6 +8,8 @@ import paymentRoutes from "./routes/payment.routes.js";
 import whatsappRoutes from "./routes/whatsapp.routes.js";
 import errorMiddleware from "./middlewares/error.middleware.js";
 import { stripeWebhooks } from "./controllers/webhooks.js";
+import notificationRoutes from "./routes/notification.routes.js";
+
 
 const app = express();
 // Stripe webhook endpoint (raw body required)
@@ -31,6 +33,8 @@ app.post(
 // Standard JSON + URL-encoded parser for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/api/notifications", notificationRoutes);
+
 
 // Static serving for PDFs
 const __filename = fileURLToPath(import.meta.url);

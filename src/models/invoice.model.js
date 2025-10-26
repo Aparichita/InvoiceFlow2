@@ -1,3 +1,4 @@
+// src/models/invoice.model.js
 import mongoose from "mongoose";
 
 // Item sub-schema
@@ -22,12 +23,14 @@ const itemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Invoice schema
 const invoiceSchema = new mongoose.Schema(
   {
+    // ✅ Added field (was missing)
     invoiceNumber: {
       type: String,
       unique: true,
-      required: true,
+      trim: true,
     },
 
     customerName: {
@@ -75,6 +78,7 @@ const invoiceSchema = new mongoose.Schema(
       type: String, // location of generated PDF (local / cloud)
     },
 
+    // ✅ Renamed “status” logic to a clear “paymentStatus”
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed"],
@@ -86,13 +90,14 @@ const invoiceSchema = new mongoose.Schema(
       enum: ["not_sent", "sent", "delivered", "failed"],
       default: "not_sent",
     },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false, // set true if you require auth
+      required: false, // set to true if you use auth
     },
 
-    // If you integrate Razorpay/Stripe later
+    // ✅ Optional fields for integrations
     paymentProvider: {
       type: String,
       enum: ["razorpay", "stripe", null],
@@ -100,13 +105,26 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     paymentProviderId: {
-      type: String, // e.g. Razorpay order_id or Stripe charge id
+      type: String, // e.g., Razorpay order_id or Stripe charge id
+    },
+
+    // ✅ Added optional language field (used in controller)
+    language: {
+      type: String,
+      default: "en",
+    },
+
+    // ✅ Added optional overall invoice status (used in controller)
+    status: {
+      type: String,
+      default: "pending",
+      trim: true,
     },
   },
   { timestamps: true }
 );
 
-// Auto-generate invoice number before save if not already set
+// ✅ Auto-generate invoice number before validation
 invoiceSchema.pre("validate", function (next) {
   if (!this.invoiceNumber) {
     this.invoiceNumber = "INV-" + Date.now();

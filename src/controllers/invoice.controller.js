@@ -1,3 +1,4 @@
+// src/controllers/invoice.controller.js
 import ApiResponse from "../utils/api-response.js";
 import ApiError from "../utils/api-error.js";
 import asyncHandler from "../utils/async-handler.js";
@@ -5,11 +6,12 @@ import generatePDF from "../utils/generate-pdf.js";
 import Invoice from "../models/invoice.model.js";
 
 /**
- * createInvoice
- * Body: { customerName, customerPhone, customerEmail?, items: [{name, quantity, price}], tax?, language? }
+ * Create a new invoice
+ * Body: { customerName, customerPhone, items: [{name, quantity, price}], tax?, language? }
  */
-const createInvoice = asyncHandler(async (req, res,next) => {
+const createInvoice = asyncHandler(async (req, res, next) => {
   console.log("Invoice POST received:", req.body);
+
   const {
     customerName,
     customerPhone,
@@ -27,22 +29,19 @@ const createInvoice = asyncHandler(async (req, res,next) => {
   ) {
     throw new ApiError(
       400,
-      "customerName, customerPhone AND at least one item are required"
+      "customerName, customerPhone and at least one item are required"
     );
   }
 
-  // calculate subtotal and total
+  // Calculate subtotal and total
   const subTotal = items.reduce(
     (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.price) || 0),
     0
   );
   const totalAmount = subTotal + Number(tax || 0);
 
-  // invoice number (simple timestamp-based)
-  const invoiceNumber = `INV-${Date.now()}`;
-
+  // Create invoice object
   const invoiceDoc = {
-    invoiceNumber,
     customerName,
     customerPhone,
     customerEmail,
@@ -51,19 +50,22 @@ const createInvoice = asyncHandler(async (req, res,next) => {
     subTotal,
     totalAmount,
     language,
-    status: "Pending",
-    createdBy: req.user?._id ?? null, // set when auth middleware supplies req.user
+    paymentStatus: "pending",
+    status: "pending",
+    createdBy: req.user?._id ?? null, // only populated if auth middleware exists
   };
 
+  // Save invoice
   const invoice = await Invoice.create(invoiceDoc);
 
-  // generate PDF
+  // Generate PDF
   try {
     const pdfUrl = await generatePDF(invoice);
     invoice.pdfUrl = pdfUrl;
     await invoice.save();
   } catch (err) {
     console.error("PDF generation failed:", err);
+    throw new ApiError(500, "PDF generation failed: " + err.message);
   }
 
   return res
@@ -71,7 +73,9 @@ const createInvoice = asyncHandler(async (req, res,next) => {
     .json(new ApiResponse(201, invoice, "Invoice created successfully"));
 });
 
-// get all invoices
+/**
+ * Get all invoices (filtered by user if available)
+ */
 const getInvoices = asyncHandler(async (req, res) => {
   const filter = req.user?._id ? { createdBy: req.user._id } : {};
   const invoices = await Invoice.find(filter).sort({ createdAt: -1 });
@@ -80,10 +84,13 @@ const getInvoices = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, invoices, "Invoices fetched successfully"));
 });
 
-// get single invoice
+/**
+ * Get a single invoice by ID
+ */
 const getInvoiceById = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const invoice = await Invoice.findById(id);
+
   if (!invoice) throw new ApiError(404, "Invoice not found");
 
   if (
@@ -100,8 +107,7 @@ const getInvoiceById = asyncHandler(async (req, res) => {
 });
 
 /**
- * generateInvoicePDF
- * POST /api/invoices/:id/pdf
+ * Generate a PDF for an existing invoice
  */
 const generateInvoicePDF = asyncHandler(async (req, res) => {
   const { id } = req.params;
