@@ -6,59 +6,102 @@ import generatePDF from "../utils/generate-pdf.js";
 import Invoice from "../models/invoice.model.js";
 
 /**
- * Create a new invoice
- * Body: { customerName, customerPhone, items: [{name, quantity, price}], tax?, language? }
+ * Create a new invoice (supports frontend payload: { customer, metadata, items })
  */
-const createInvoice = asyncHandler(async (req, res, next) => {
-  console.log("Invoice POST received:", req.body);
+const createInvoice = asyncHandler(async (req, res) => {
+  const { customer, metadata, items = [] } = req.body;
 
-  const {
-    customerName,
-    customerPhone,
-    customerEmail,
-    items = [],
-    tax = 0,
-    language = "en",
-  } = req.body;
-
+  // --------------------
+  // Mandatory fields check
+  // --------------------
   if (
-    !customerName ||
-    !customerPhone ||
+    !customer?.name ||
+    !customer?.phone ||
     !Array.isArray(items) ||
-    items.length === 0
+    items.length === 0 ||
+    !metadata?.dueDate ||
+    !metadata?.paymentTerms
   ) {
     throw new ApiError(
       400,
-      "customerName, customerPhone and at least one item are required"
+      "Customer name, phone, due date, payment terms, and at least one item are required"
     );
   }
 
-  // Calculate subtotal and total
+  // --------------------
+  // Invoice number (auto-generate if not provided)
+  // --------------------
+  let invoiceNumber = metadata?.invoiceNo || `INV-${Date.now()}`;
+
+  // --------------------
+  // Check uniqueness
+  // --------------------
+  const existingInvoice = await Invoice.findOne({ invoiceNumber });
+  if (existingInvoice) {
+    throw new ApiError(409, "Invoice number already exists");
+  }
+
+  // --------------------
+  // Calculate totals
+  // --------------------
   const subTotal = items.reduce(
-    (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.price) || 0),
+    (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
     0
   );
-  const totalAmount = subTotal + Number(tax || 0);
 
-  // Create invoice object
+  const totalTax = items.reduce(
+    (acc, it) =>
+      acc +
+      ((Number(it.tax) || 0) / 100) *
+        ((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)),
+    0
+  );
+
+  const totalDiscount = items.reduce(
+    (acc, it) =>
+      acc +
+      ((Number(it.discount) || 0) / 100) *
+        ((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)),
+    0
+  );
+
+  const totalAmount = subTotal + totalTax - totalDiscount;
+
+  // --------------------
+  // Create invoice document
+  // --------------------
   const invoiceDoc = {
-    customerName,
-    customerPhone,
-    customerEmail,
-    items,
-    tax,
+    clientName: customer.name,
+    customerPhone: customer.phone,
+    customerEmail: customer.email || "",
+    clientAddress: customer.address || "",
+    items: items.map((it) => ({
+      name: it.description,
+      quantity: it.quantity,
+      price: it.unitPrice,
+    })),
     subTotal,
+    tax: totalTax,
     totalAmount,
-    language,
+    language: metadata.language || "en",
     paymentStatus: "pending",
     status: "pending",
-    createdBy: req.user?._id ?? null, // only populated if auth middleware exists
+    dueDate: new Date(metadata.dueDate),
+    paymentTerms: metadata.paymentTerms,
+    notes: metadata.notes || "",
+    invoiceNumber,
+    invoiceDate: metadata.issueDate ? new Date(metadata.issueDate) : new Date(),
+    createdBy: req.user?._id ?? null,
   };
 
+  // --------------------
   // Save invoice
+  // --------------------
   const invoice = await Invoice.create(invoiceDoc);
 
+  // --------------------
   // Generate PDF
+  // --------------------
   try {
     const pdfUrl = await generatePDF(invoice);
     invoice.pdfUrl = pdfUrl;
@@ -68,17 +111,35 @@ const createInvoice = asyncHandler(async (req, res, next) => {
     throw new ApiError(500, "PDF generation failed: " + err.message);
   }
 
+  // --------------------
+  // Return response
+  // --------------------
   return res
     .status(201)
-    .json(new ApiResponse(201, invoice, "Invoice created successfully"));
+    .json({
+      status: 201,
+      success: true,
+      data: invoice,
+      message: "Invoice created successfully",
+    });
 });
 
+
 /**
- * Get all invoices (filtered by user if available)
+ * Get all invoices with optional filters (invoiceNumber, clientName, customerEmail)
  */
 const getInvoices = asyncHandler(async (req, res) => {
-  const filter = req.user?._id ? { createdBy: req.user._id } : {};
+  const { invoiceNumber, clientName, customerEmail } = req.query;
+
+  let filter = req.user?._id ? { createdBy: req.user._id } : {};
+
+  if (invoiceNumber) filter.invoiceNumber = invoiceNumber;
+  if (clientName) filter.clientName = { $regex: clientName, $options: "i" };
+  if (customerEmail)
+    filter.customerEmail = { $regex: customerEmail, $options: "i" };
+
   const invoices = await Invoice.find(filter).sort({ createdAt: -1 });
+
   return res
     .status(200)
     .json(new ApiResponse(200, invoices, "Invoices fetched successfully"));

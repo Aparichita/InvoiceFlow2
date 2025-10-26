@@ -40,25 +40,21 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     req.user = user;
     return next();
   } catch (error) {
-    // If token expired or invalid, treat as unauthorized
     throw new ApiError(401, "Invalid access token");
   }
 });
 
 /**
- * authorizeRoles(...)
- * - Usage: router.get('/admin', verifyJWT, authorizeRoles('admin'), handler)
- * - Pass one or more role strings; middleware will 403 if user's role is not included
+ * authorizeRoles(...roles)
+ * - Pass one or more role strings; 403 if user's role is not included
  */
 export const authorizeRoles = (...allowedRoles) =>
   asyncHandler(async (req, res, next) => {
-    // make sure verifyJWT ran before this middleware
     const user = req.user;
     if (!user) {
       throw new ApiError(401, "Not authenticated");
     }
 
-    // If user.role is undefined, treat as forbidden
     const role = user.role;
     if (!role || !allowedRoles.includes(role)) {
       throw new ApiError(403, "Forbidden: insufficient permissions");

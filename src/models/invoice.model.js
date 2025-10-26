@@ -19,6 +19,8 @@ const itemSchema = new mongoose.Schema(
       required: [true, "Item price is required"],
       min: [0, "Price must be >= 0"],
     },
+    tax: { type: Number, default: 0, min: 0 },
+    discount: { type: Number, default: 0, min: 0 },
   },
   { _id: false }
 );
@@ -26,17 +28,36 @@ const itemSchema = new mongoose.Schema(
 // Invoice schema
 const invoiceSchema = new mongoose.Schema(
   {
-    // ✅ Added field (was missing)
     invoiceNumber: {
       type: String,
       unique: true,
       trim: true,
     },
 
-    customerName: {
+    // Frontend-friendly fields
+    clientName: {
       type: String,
-      required: [true, "Customer name is required"],
+      required: [true, "Client name is required"],
       trim: true,
+    },
+    clientEmail: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    clientAddress: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    notes: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    invoiceDate: {
+      type: Date,
+      default: Date.now,
     },
 
     customerPhone: {
@@ -75,10 +96,9 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     pdfUrl: {
-      type: String, // location of generated PDF (local / cloud)
+      type: String,
     },
 
-    // ✅ Renamed “status” logic to a clear “paymentStatus”
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed"],
@@ -94,10 +114,9 @@ const invoiceSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false, // set to true if you use auth
+      required: false,
     },
 
-    // ✅ Optional fields for integrations
     paymentProvider: {
       type: String,
       enum: ["razorpay", "stripe", null],
@@ -105,26 +124,35 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     paymentProviderId: {
-      type: String, // e.g., Razorpay order_id or Stripe charge id
+      type: String,
     },
 
-    // ✅ Added optional language field (used in controller)
     language: {
       type: String,
       default: "en",
     },
 
-    // ✅ Added optional overall invoice status (used in controller)
     status: {
       type: String,
       default: "pending",
+      trim: true,
+    },
+
+    dueDate: {
+      type: Date,
+      required: [true, "Due date is required"],
+    },
+
+    paymentTerms: {
+      type: String,
+      required: [true, "Payment terms are required"],
       trim: true,
     },
   },
   { timestamps: true }
 );
 
-// ✅ Auto-generate invoice number before validation
+// Auto-generate invoice number before validation
 invoiceSchema.pre("validate", function (next) {
   if (!this.invoiceNumber) {
     this.invoiceNumber = "INV-" + Date.now();

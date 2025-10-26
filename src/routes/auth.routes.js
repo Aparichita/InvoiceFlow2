@@ -12,6 +12,7 @@ import {
   changeCurrentPassword,
   resendEmailVerification,
 } from "../controllers/auth.controller.js";
+
 import { validate } from "../middlewares/validator.middleware.js";
 import {
   userRegisterValidator,
@@ -20,6 +21,7 @@ import {
   userResetForgotPasswordValidator,
   userChangeCurrentPasswordValidator,
 } from "../validators/index.js";
+
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = Router();
@@ -27,18 +29,19 @@ const router = Router();
 /* ========= UNSECURED ROUTES ========= */
 
 // Register new user
+// Make sure userRegisterValidator checks that 'confirmPassword' exists
 router.post("/register", userRegisterValidator(), validate, registerUser);
 
 // Login user
 router.post("/login", userLoginValidator(), validate, login);
 
-// Verify email with token
+// Verify email
 router.get("/verify-email/:verificationToken", verifyEmail);
 
-// Refresh access token (using refresh token)
+// Refresh access token
 router.post("/refresh-token", refreshAccessToken);
 
-// Forgot password (request reset link)
+// Forgot password request
 router.post(
   "/forgot-password",
   userForgotPasswordValidator(),
@@ -61,8 +64,7 @@ router.post("/logout", verifyJWT, logoutUser);
 
 // Get current logged-in user
 router.get("/me", verifyJWT, getCurrentUser);
-// (alias: /current-user, can be removed if not needed)
-router.get("/current-user", verifyJWT, getCurrentUser);
+router.get("/current-user", verifyJWT, getCurrentUser); // alias
 
 // Change current password
 router.post(
@@ -73,7 +75,7 @@ router.post(
   changeCurrentPassword
 );
 
-// Resend email verification link
+// Resend email verification
 router.post("/resend-email-verification", verifyJWT, resendEmailVerification);
 
 export default router;

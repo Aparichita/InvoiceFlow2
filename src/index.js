@@ -2,15 +2,31 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import mongoose from "mongoose";
-import app from "./app.js"; // <--- use your app.js
+import cookieParser from "cookie-parser";
+import app from "./app.js";
+
 const PORT = process.env.PORT || 3500;
 
-// Connect to MongoDB
+// Middleware: parse cookies
+app.use(cookieParser());
+
+// Optional: global request logger
+app.use((req, res, next) => {
+  console.log("📨 Incoming request:", {
+    method: req.method,
+    url: req.url,
+    timestamp: new Date().toISOString(),
+  });
+  next();
+});
+
+// --------------------
+// MongoDB Connection
+// --------------------
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
-
     const server = app.listen(PORT, "0.0.0.0", () => {
       console.log(`🎯 Server running on http://localhost:${PORT}`);
     });
@@ -25,16 +41,16 @@ mongoose
   })
   .catch((err) => {
     console.error("❌ MongoDB Connection failed:", err.message);
-    console.log("⚠️  Starting server without DB...");
+    console.log("⚠️ Starting server without DB...");
 
     app.listen(PORT, () => {
       console.log(`🎯 Server running on http://localhost:${PORT} (without DB)`);
     });
   });
-  
 
-
-// Handle uncaught exceptions and unhandled rejections
+// --------------------
+// Handle uncaught errors
+// --------------------
 process.on("uncaughtException", (error) => {
   console.error("💥 Uncaught Exception:", error.message);
   process.exit(1);
